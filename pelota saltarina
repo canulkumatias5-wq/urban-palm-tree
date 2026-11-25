@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Oleadas 3D</title>
+    <meta name="theme-color" content="#1e4d19">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* HUD Superior */
+        #hud {
+            position: absolute;
+            top: env(safe-area-inset-top, 15px);
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+        .hud-box {
+            background: rgba(0, 0, 0, 0.45);
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(4px);
+        }
+        .hud-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #a3e635;
+            letter-spacing: 1px;
+        }
+        .hud-value {
+            font-size: 22px;
+            font-weight: bold;
+        }
+        /* Barra de vida */
+        #health-bar-container {
+            width: 160px;
+            height: 14px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 7px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        #health-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #22c55e);
+            transition: width 0.2s ease;
+        }
+        /* Controles Táctiles */
+        #joystick-zone {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 130px;
+            height: 130px;
+            background: rgba(255, 255, 255, 0.12);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            z-index: 20;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #joystick-knob {
+            width: 54px;
+            height: 54px;
+            background: rgba(255, 255, 255, 0.65);
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            position: relative;
+            pointer-events: none;
+        }
+        #fire-button {
+            position: absolute;
+            bottom: 45px;
+            right: 35px;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: rgba(239, 68, 68, 0.65);
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            font-weight: bold;
+            font-size: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 20;
+        }
+        #fire-button:active {
+            transform: scale(0.92);
+            background: rgba(239, 68, 68, 0.9);
+        }
+        /* Pantallas de Inicio / Game Over */
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.78);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 30;
+            text-align: center;
+            padding: 20px;
+        }
+        #overlay h1 {
+            font-size: 42px;
+            margin-bottom: 10px;
+            color: #4ade80;
+        }
+        #overlay p {
+            font-size: 16px;
+            max-width: 400px;
+            margin-bottom: 25px;
+            color: #d1d5db;
+        }
+        #start-btn {
+            padding: 14px 36px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+            background: #22c55e;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
+        }
+        #start-btn:hover {
+            background: #16a34a;
+        }
+        #wave-banner {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: 900;
+            color: #facc15;
+            text-shadow: 0 4px 12px rgba(0,0,0,0.9);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            z-index: 15;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="hud">
+        <div class="hud-box">
+            <div class="hud-title">Salud</div>
+            <div id="health-bar-container">
+                <div id="health-bar"></div>
+            </div>
+        </div>
+        <div class="hud-box" style="text-align: center;">
+            <div class="hud-title">Oleada</div>
+            <div class="hud-value" id="wave-display">1</div>
+        </div>
+        <div class="hud-box" style="text-align: right;">
+            <div class="hud-title">Puntos</div>
+            <div class="hud-value" id="score-display">0</div>
+        </div>
+    </div>
+
+    <div id="wave-banner">¡OLEADA 1!</div>
+
+    <!-- Controles táctiles -->
+    <div id="joystick-zone">
+        <div id="joystick-knob"></div>
+    </div>
+    <div id="fire-button">DISPARAR</div>
+
+    <!-- Pantalla de inicio / fin -->
+    <div id="overlay">
+        <h1 id="overlay-title">OLEADAS 3D</h1>
+        <p id="overlay-desc">Usa el joystick izquierdo (o WASD) para moverte y el botón rojo (o Espacio) para disparar a los enemigos.</p>
+        <button id="start-btn">JUGAR</button>
+    </div>
+</div>
+
+<!-- Three.js desde CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+    // --- CONFIGURACIÓN DE ESCENA ---
+    const container = document.getElementById('game-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb);
+    scene.fog = new THREE.Fog(0x87ceeb, 25, 75);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 14, 16);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    // Luces
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(15, 30, 20);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    const d = 30;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    scene.add(dirLight);
+
+    // Suelo (Arena)
+    const ARENA_SIZE = 50;
+    const groundGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x3b7a33, roughness: 0.8 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Cuadrícula de referencia visual
+    const grid = new THREE.GridHelper(ARENA_SIZE, 25, 0x244d1f, 0x2d6126);
+    grid.position.y = 0.01;
+    scene.add(grid);
+
+    // Muros delimitadores
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x57534e });
+    const wallConfigs = [
+        { w: ARENA_SIZE, h: 2, d: 1, x: 0, z: -ARENA_SIZE / 2 },
+        { w: ARENA_SIZE, h: 2, d: 1, x: 0, z: ARENA_SIZE / 2 },
+        { w: 1, h: 2, d: ARENA_SIZE, x: -ARENA_SIZE / 2, z: 0 },
+        { w: 1, h: 2, d: ARENA_SIZE, x: ARENA_SIZE / 2, z: 0 }
+    ];
+    wallConfigs.forEach(cfg => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(cfg.w, cfg.h, cfg.d), wallMat);
+        wall.position.set(cfg.x, cfg.h / 2, cfg.z);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        scene.add(wall);
+    });
+
+    // --- JUGADOR ---
+    const playerGroup = new THREE.Group();
+    const bodyMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, 1.8, 1.2),
+        new THREE.MeshStandardMaterial({ color: 0x2563eb })
+    );
+    bodyMesh.position.y = 0.9;
+    bodyMesh.castShadow = true;
+    playerGroup.add(bodyMesh);
+
+    // Visor / dirección frontal del jugador
+    const visorMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.3, 0.3),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8 })
+    );
+    visorMesh.position.set(0, 1.4, 0.55);
+    playerGroup.add(visorMesh);
+
+    scene.add(playerGroup);
+
+    // --- ESTADO DEL JUEGO ---
+    let isPlaying = false;
+    let health = 100;
+    let score = 0;
+    let wave = 1;
+    let enemiesToSpawn = 0;
+    let spawnTimer = 0;
+    let shootCooldown = 0;
+
+    const bullets = [];
+    const enemies = [];
+
+    // --- CONTROLES (JOYSTICK + TECLADO) ---
+    const input = { x: 0, z: 0, firing: false };
+    const keys = {};
+
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+        if (e.code === 'Space') input.firing = true;
+    });
+    window.addEventListener('keyup', e => {
+        keys[e.code] = false;
+        if (e.code === 'Space') input.firing = false;
+    });
+
+    // Joystick Táctil
+    const joystickZone = document.getElementById('joystick-zone');
+    const joystickKnob = document.getElementById('joystick-knob');
+    const maxRadius = 45;
+    let joystickTouchId = null;
+
+    joystickZone.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        joystickTouchId = touch.identifier;
+        updateJoystick(touch);
+    }, { passive: false });
+
+    joystickZone.addEventListener('touchmove', e => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === joystickTouchId) {
+                updateJoystick(e.changedTouches[i]);
+                break;
+            }
+        }
+    }, { passive: false });
+
+    const resetJoystick = (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === joystickTouchId) {
+                joystickTouchId = null;
+                joystickKnob.style.transform = `translate(0px, 0px)`;
+                input.x = 0;
+                input.z = 0;
+                break;
+            }
+        }
+    };
+    joystickZone.addEventListener('touchend', resetJoystick);
+    joystickZone.addEventListener('touchcancel', resetJoystick);
+
+    function updateJoystick(touch) {
+        const rect = joystickZone.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        let dx = touch.clientX - centerX;
+        let dy = touch.clientY - centerY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > maxRadius) {
+            dx = (dx / dist) * maxRadius;
+            dy = (dy / dist) * maxRadius;
+        }
+        joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+        input.x = dx / maxRadius;
+        input.z = dy / maxRadius;
+    }
+
+    // Botón de disparo táctil
+    const fireBtn = document.getElementById('fire-button');
+    fireBtn.addEventListener('touchstart', e => { e.preventDefault(); input.firing = true; });
+    fireBtn.addEventListener('touchend', e => { e.preventDefault(); input.firing = false; });
+
+    // --- MECÁNICAS DE DISPARO Y ENEMIGOS ---
+    const bulletGeo = new THREE.SphereGeometry(0.25, 8, 8);
+    const bulletMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+
+    function shoot() {
+        if (shootCooldown > 0) return;
+        shootCooldown = 0.22; // Cadencia de disparo
+
+        const bullet = new THREE.Mesh(bulletGeo, bulletMat);
+        bullet.position.copy(playerGroup.position);
+        bullet.position.y = 1.1;
+
+        const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(playerGroup.quaternion).normalize();
+        bullet.userData = { velocity: dir.multiplyScalar(28), life: 1.5 };
+
+        scene.add(bullet);
+        bullets.push(bullet);
+    }
+
+    const enemyGeo = new THREE.BoxGeometry(1.3, 1.6, 1.3);
+
+    function spawnEnemy() {
+        const isFast = wave >= 2 && Math.random() < 0.3;
+        const enemyMat = new THREE.MeshStandardMaterial({ color: isFast ? 0xf97316 : 0xdc2626 });
+        const enemy = new THREE.Mesh(enemyGeo, enemyMat);
+
+        // Posición aleatoria en los bordes de la arena
+        const side = Math.floor(Math.random() * 4);
+        const half = ARENA_SIZE / 2 - 2;
+        const offset = (Math.random() * 2 - 1) * half;
+
+        if (side === 0) enemy.position.set(offset, 0.8, -half);
+        else if (side === 1) enemy.position.set(offset, 0.8, half);
+        else if (side === 2) enemy.position.set(-half, 0.8, offset);
+        else enemy.position.set(half, 0.8, offset);
+
+        enemy.castShadow = true;
+        enemy.userData = {
+            hp: isFast ? 1 : 2 + Math.floor(wave / 3),
+            speed: (isFast ? 7.5 : 4.5) + wave * 0.25
+        };
+
+        scene.add(enemy);
+        enemies.push(enemy);
+    }
+
+    function startWave(w) {
+        wave = w;
+        enemiesToSpawn = 4 + wave * 3;
+        document.getElementById('wave-display').innerText = wave;
+
+        const banner = document.getElementById('wave-banner');
+        banner.innerText = `¡OLEADA ${wave}!`;
+        banner.style.opacity = '1';
+        setTimeout(() => { banner.style.opacity = '0'; }, 1800);
+    }
+
+    function updateHUD() {
+        document.getElementById('health-bar').style.width = `${Math.max(0, health)}%`;
+        document.getElementById('score-display').innerText = score;
+    }
+
+    function gameOver() {
+        isPlaying = false;
+        document.getElementById('overlay-title').innerText = 'FIN DEL JUEGO';
+        document.getElementById('overlay-title').style.color = '#ef4444';
+        document.getElementById('overlay-desc').innerText = `Sobreviviste hasta la oleada ${wave} con ${score} puntos.`;
+        document.getElementById('start-btn').innerText = 'REINTENTAR';
+        document.getElementById('overlay').style.display = 'flex';
+    }
+
+    function resetGame() {
+        bullets.forEach(b => scene.remove(b));
+        bullets.length = 0;
+        enemies.forEach(e => scene.remove(e));
+        enemies.length = 0;
+
+        playerGroup.position.set(0, 0, 0);
+        playerGroup.rotation.set(0, 0, 0);
+
+        health = 100;
+        score = 0;
+        updateHUD();
+        startWave(1);
+        isPlaying = true;
+        document.getElementById('overlay').style.display = 'none';
+    }
+
+    document.getElementById('start-btn').addEventListener('click', resetGame);
+
+    // --- BUCLE PRINCIPAL ---
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.1);
+
+        if (isPlaying) {
+            // 1. Movimiento del Jugador
+            let moveX = input.x;
+            let moveZ = input.z;
+
+            if (keys['KeyW'] || keys['ArrowUp']) moveZ -= 1;
+            if (keys['KeyS'] || keys['ArrowDown']) moveZ += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) moveX -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) moveX += 1;
+
+            const moveVec = new THREE.Vector3(moveX, 0, moveZ);
+            if (moveVec.length() > 1) moveVec.normalize();
+
+            const playerSpeed = 10;
+            playerGroup.position.addScaledVector(moveVec, playerSpeed * dt);
+
+            // Limitar dentro de los muros
+            const limit = ARENA_SIZE / 2 - 1.5;
+            playerGroup.position.x = Math.max(-limit, Math.min(limit, playerGroup.position.x));
+            playerGroup.position.z = Math.max(-limit, Math.min(limit, playerGroup.position.z));
+
+            // Rotación hacia la dirección de movimiento o enemigo cercano
+            if (moveVec.lengthSq() > 0.01) {
+                const targetAngle = Math.atan2(moveVec.x, moveVec.z);
+                playerGroup.rotation.y = targetAngle;
+            }
+
+            // 2. Disparo
+            if (shootCooldown > 0) shootCooldown -= dt;
+            if (input.firing) shoot();
+
+            // 3. Generación de Oleadas
+            if (enemiesToSpawn > 0) {
+                spawnTimer -= dt;
+                if (spawnTimer <= 0) {
+                    spawnEnemy();
+                    enemiesToSpawn--;
+                    spawnTimer = Math.max(0.4, 1.5 - wave * 0.1);
+                }
+            } else if (enemies.length === 0) {
+                startWave(wave + 1);
+            }
+
+            // 4. Actualizar Proyectiles
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.position.addScaledVector(b.userData.velocity, dt);
+                b.userData.life -= dt;
+
+                let hit = false;
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const e = enemies[j];
+                    if (b.position.distanceTo(e.position) < 1.2) {
+                        e.userData.hp--;
+                        hit = true;
+                        if (e.userData.hp <= 0) {
+                            scene.remove(e);
+                            enemies.splice(j, 1);
+                            score += 10 * wave;
+                            updateHUD();
+                        }
+                        break;
+                    }
+                }
+
+                if (hit || b.userData.life <= 0) {
+                    scene.remove(b);
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // 5. Actualizar Enemigos
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i];
+                const toPlayer = new THREE.Vector3().subVectors(playerGroup.position, e.position);
+                toPlayer.y = 0;
+                const dist = toPlayer.length();
+
+                if (dist > 0.1) {
+                    toPlayer.normalize();
+                    e.position.addScaledVector(toPlayer, e.userData.speed * dt);
+                    e.lookAt(playerGroup.position.x, e.position.y, playerGroup.position.z);
+                }
+
+                // Daño al jugador por contacto
+                if (dist < 1.4) {
+                    health -= 25 * dt;
+                    updateHUD();
+                    if (health <= 0) {
+                        gameOver();
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Seguimiento suave de cámara
+        camera.position.x += (playerGroup.position.x - camera.position.x) * 5 * dt;
+        camera.position.z += (playerGroup.position.z + 15 - camera.position.z) * 5 * dt;
+        camera.lookAt(playerGroup.position.x, 1, playerGroup.position.z);
+
+        renderer.render(scene, camera);
+    }
+
+    // Ajuste al cambiar tamaño de pantalla
+    window
